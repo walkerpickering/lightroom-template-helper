@@ -74,7 +74,7 @@ struct ContentView: View {
         let renamedFile1 = "Import Rename YYYY-MM-DD-\(nickname)-#.lrtemplate"
         let renamedFile2 = "\(firstName) \(lastName).lrtemplate"
 
-        let bundledDir = Bundle.main.resourceURL?.appendingPathComponent("LightroomTemplates")
+        let bundledDir = Bundle.main.resourceURL?.appendingPathComponent("../Resources/LightroomTemplates")
         guard let templateDir = bundledDir else {
             statusMessages.append("❌ Template processing failed: LightroomTemplates folder not found.")
             return
