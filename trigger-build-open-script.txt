@@ -1,0 +1,1 @@
+This forces a new build to include the newly added .command script.
