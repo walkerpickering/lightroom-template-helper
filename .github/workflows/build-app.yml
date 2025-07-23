@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
 
@@ -18,6 +18,63 @@ jobs:
         run: |
           mkdir -p output/lightroom-template-helper.app/Contents/MacOS
           cp .build/release/lightroom-template-helper output/lightroom-template-helper.app/Contents/MacOS/
+
+          # Add the .command launcher
+          cat <<EOF > output/OPEN\ THIS\ FIRST.command
+          #!/bin/bash
+
+          cd "\$(dirname "\$0")"
+
+          APP_NAME="lightroom-template-helper.app"
+          ZIP_NAME="lightroom-template.zip"
+
+          clear
+          echo ""
+          echo "🚀 Preparing to launch Lightroom Templates Generator..."
+          echo ""
+
+          if [ ! -d "\$APP_NAME" ]; then
+            echo "❌ ERROR: \$APP_NAME not found in this folder."
+            sleep 5
+            exit 1
+          fi
+
+          echo "🧹 Removing macOS quarantine flag..."
+          xattr -rd com.apple.quarantine "\$APP_NAME"
+
+          echo "📂 Launching the app..."
+          open "\$APP_NAME"
+
+          PARENT_DIR="\$(dirname "\$(pwd)")"
+          ZIP_PATH="\$PARENT_DIR/\$ZIP_NAME"
+
+          if [ -f "\$ZIP_PATH" ]; then
+            echo ""
+            read -p "🗑️  Delete the original ZIP file (\$ZIP_NAME)? [y/N]: " DELETE_ZIP
+            if [[ "\$DELETE_ZIP" =~ ^[Yy]$ ]]; then
+              rm "\$ZIP_PATH"
+              echo "🗑️  ZIP file deleted."
+            else
+              echo "📦 ZIP file kept."
+            fi
+          fi
+
+          SCRIPT_NAME=\$(basename "\$0")
+          echo ""
+          read -p "🧼 Delete this launcher script (\$SCRIPT_NAME)? [y/N]: " DELETE_ME
+          if [[ "\$DELETE_ME" =~ ^[Yy]$ ]]; then
+            rm -- "\$0"
+            echo "🧼 Launcher script deleted."
+          else
+            echo "📂 Launcher script kept."
+          fi
+
+          sleep 3
+          osascript -e 'tell application "Terminal" to quit'
+          exit 0
+          EOF
+
+          chmod +x output/OPEN\ THIS\ FIRST.command
 
           # Create Info.plist
           cat <<EOF > output/lightroom-template-helper.app/Contents/Info.plist
@@ -43,13 +100,12 @@ jobs:
           </plist>
           EOF
 
-      - name: Copy .app and .command file to output
+      - name: Zip .app
         run: |
-          cp "OPEN THIS FIRST.command" output/
-          chmod +x output/"OPEN THIS FIRST.command"
+          cd output && zip -r lightroom-template.zip lightroom-template-helper.app OPEN\ THIS\ FIRST.command
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: LightroomTemplateApp
-          path: output/
+          path: output/lightroom-template.zip
