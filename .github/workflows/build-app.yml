@@ -22,3 +22,4 @@ jobs:
         with:
           name: LightroomTemplateApp
           path: output/lightroom-template.zip
+  
