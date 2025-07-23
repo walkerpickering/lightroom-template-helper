@@ -10,14 +10,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Build .app
+      - name: Build with SwiftPM
         run: |
-          xcodebuild -project lightroom-template-helper.xcodeproj -scheme lightroom-template-helper -configuration Release -derivedDataPath build
-
-      - name: Zip .app
-        run: |
-          mkdir output
-          cp -R build/Build/Products/Release/lightroom-template-helper.app output/
+          swift build -c release
+          mkdir -p output
+          cp -R .build/release/lightroom-template-helper output/lightroom-template-helper.app
           cd output && zip -r lightroom-template.zip lightroom-template-helper.app
 
       - name: Upload artifact
