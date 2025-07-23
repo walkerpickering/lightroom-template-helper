@@ -1,0 +1,27 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build .app
+        run: |
+          xcodebuild -project lightroom-template-helper.xcodeproj -scheme lightroom-template-helper -configuration Release -derivedDataPath build
+
+      - name: Zip .app
+        run: |
+          mkdir output
+          cp -R build/Build/Products/Release/lightroom-template-helper.app output/
+          cd output && zip -r lightroom-template.zip lightroom-template-helper.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: LightroomTemplateApp
+          path: output/lightroom-template.zip
