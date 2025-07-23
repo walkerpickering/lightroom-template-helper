@@ -54,65 +54,116 @@ struct ContentView: View {
         .frame(width: 400, height: 500)
     }
 
-    func handleSubmit() {
-        let replacements: [String: String] = [
-            "{{FIRST}}": firstName,
-            "{{LAST}}": lastName,
-            "{{NICKNAME}}": nickname
-        ]
+func handleSubmit() {
+    let fm = FileManager.default
+    let cwd = fm.currentDirectoryPath
+    let templatesDir = URL(fileURLWithPath: cwd).appendingPathComponent("LightroomTemplates")
 
-        // Paths
-        let fileManager = FileManager.default
-        let homeDir = fileManager.homeDirectoryForCurrentUser
-        let sourceDir = homeDir.appendingPathComponent("LightroomTemplates")
-        let destDir = homeDir
-            .appendingPathComponent("Library")
-            .appendingPathComponent("Application Support")
-            .appendingPathComponent("Adobe")
-            .appendingPathComponent("Lightroom")
+    // Destination folders (macOS-specific)
+    let destBase = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/Adobe/Lightroom")
 
-        // Template file renaming logic
+    let templateSubfolders = [
+        "Filename Templates",
+        "Import Presets",
+        "Keyword Sets",
+        "Label Sets",
+        "Local Adjustment Presets",
+        "Metadata Presets",
+        "Tone Curve Presets",
+        "Develop Presets",
+        "Export Presets",
+        "Watermarks"
+    ]
+
+    // Replace placeholders
+    let placeholders: [String: String] = [
+        "{{FIRST}}": firstName,
+        "{{LAST}}": lastName,
+        "{{NICKNAME}}": nickname
+    ]
+
+    statusMessages.append("📁 Starting template generation...")
+
+    guard fm.fileExists(atPath: templatesDir.path) else {
+        statusMessages.append("❌ Template source folder not found: \(templatesDir.path)")
+        return
+    }
+
+    for subfolder in templateSubfolders {
+        let sourcePath = templatesDir.appendingPathComponent(subfolder)
+        let destPath = destBase.appendingPathComponent(subfolder)
+
         do {
-            let items = try fileManager.contentsOfDirectory(at: sourceDir, includingPropertiesForKeys: nil)
-            for file in items {
-                if file.pathExtension == "lrtemplate" {
-                    var newName = file.lastPathComponent
-                    for (placeholder, value) in replacements {
-                        newName = newName.replacingOccurrences(of: placeholder, with: value)
+            if !fm.fileExists(atPath: destPath.path) {
+                try fm.createDirectory(at: destPath, withIntermediateDirectories: true)
+            }
+
+            let files = try fm.contentsOfDirectory(atPath: sourcePath.path)
+
+            for file in files {
+                let fileURL = sourcePath.appendingPathComponent(file)
+
+                // Read file contents
+                var contents = try String(contentsOf: fileURL, encoding: .utf8)
+
+                // Replace placeholders
+                for (tag, value) in placeholders {
+                    contents = contents.replacingOccurrences(of: tag, with: value)
+                }
+
+                // Rename file if needed
+                var outputFilename = file
+                if file.contains("{{NICKNAME}}") || file.contains("{{FIRST}}") {
+                    outputFilename = file
+                    for (tag, value) in placeholders {
+                        outputFilename = outputFilename.replacingOccurrences(of: tag, with: value)
                     }
+                }
 
-                    let destFile = destDir.appendingPathComponent(newName)
+                let outputURL = destPath.appendingPathComponent(outputFilename)
 
-                    if fileManager.fileExists(atPath: destFile.path) {
-                        statusMessages.append("⚠️ Overwriting: \(newName)")
-                    } else {
-                        statusMessages.append("✅ Creating: \(newName)")
-                    }
+                // Warn if overwriting
+                if fm.fileExists(atPath: outputURL.path) {
+                    statusMessages.append("⚠️ Overwriting existing file: \(outputURL.lastPathComponent)")
+                }
 
-                    try? fileManager.copyItem(at: file, to: destFile)
+                try contents.write(to: outputURL, atomically: true, encoding: .utf8)
+                statusMessages.append("✅ Created: \(outputFilename)")
+            }
+
+        } catch {
+            statusMessages.append("❌ Error processing \(subfolder): \(error.localizedDescription)")
+        }
+    }
+
+    // Rename all catalog files
+    let catalogDir = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Pictures/Lightroom")
+
+    let oldPrefix = "Lightroom Catalog"
+    let newPrefix = "\(firstName) \(lastName)"
+
+    do {
+        let files = try fm.contentsOfDirectory(atPath: catalogDir.path)
+
+        for file in files {
+            if file.hasPrefix(oldPrefix) {
+                let newName = file.replacingOccurrences(of: oldPrefix, with: newPrefix)
+                let oldURL = catalogDir.appendingPathComponent(file)
+                let newURL = catalogDir.appendingPathComponent(newName)
+
+                if !fm.fileExists(atPath: newURL.path) {
+                    try fm.moveItem(at: oldURL, to: newURL)
+                    statusMessages.append("🔁 Renamed: \(file) → \(newName)")
+                } else {
+                    statusMessages.append("⚠️ Skipped rename: \(newName) already exists")
                 }
             }
-        } catch {
-            statusMessages.append("❌ Template processing failed: \(error.localizedDescription)")
         }
-
-        // Catalog renaming logic
-        let picturesDir = homeDir.appendingPathComponent("Pictures").appendingPathComponent("Lightroom")
-        let defaultCatalog = picturesDir.appendingPathComponent("Lightroom Catalog.lrcat")
-        let newCatalogName = "\(firstName) \(lastName).lrcat"
-        let newCatalogPath = picturesDir.appendingPathComponent(newCatalogName)
-
-        if fileManager.fileExists(atPath: defaultCatalog.path) {
-            do {
-                try fileManager.moveItem(at: defaultCatalog, to: newCatalogPath)
-                statusMessages.append("📦 Catalog renamed to: \(newCatalogName)")
-            } catch {
-                statusMessages.append("❌ Failed to rename catalog: \(error.localizedDescription)")
-            }
-        } else {
-            statusMessages.append("ℹ️ No default catalog found. Skipping rename.")
-        }
-
-        statusMessages.append("🎉 Done!")
+    } catch {
+        statusMessages.append("❌ Catalog renaming failed: \(error.localizedDescription)")
     }
+
+    statusMessages.append("🎉 All done, you glorious beast.")
 }
