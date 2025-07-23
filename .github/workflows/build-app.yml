@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v3
 
@@ -43,12 +43,13 @@ jobs:
           </plist>
           EOF
 
-      - name: Zip .app
+      - name: Copy .app and .command file to output
         run: |
-          cd output && zip -r lightroom-template.zip lightroom-template-helper.app
+          cp "OPEN THIS FIRST.command" output/
+          chmod +x output/"OPEN THIS FIRST.command"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: LightroomTemplateApp
-          path: output/lightroom-template.zip
+          path: output/
