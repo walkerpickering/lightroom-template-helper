@@ -21,7 +21,7 @@ jobs:
           cd output && zip -r lightroom-template.zip lightroom-template-helper.app
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: LightroomTemplateApp
           path: output/lightroom-template.zip
