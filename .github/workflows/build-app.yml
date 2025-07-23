@@ -1,4 +1,4 @@
-name: Build macOS App
+name: Build macOS App Bundle
 
 on:
   push:
@@ -13,8 +13,38 @@ jobs:
       - name: Build with SwiftPM
         run: |
           swift build -c release
-          mkdir -p output
-          cp -R .build/release/lightroom-template-helper output/lightroom-template-helper.app
+
+      - name: Create .app bundle
+        run: |
+          mkdir -p output/lightroom-template-helper.app/Contents/MacOS
+          cp .build/release/lightroom-template-helper output/lightroom-template-helper.app/Contents/MacOS/
+
+          # Create Info.plist
+          cat <<EOF > output/lightroom-template-helper.app/Contents/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>lightroom-template-helper</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.unl.lightroom.template</string>
+            <key>CFBundleName</key>
+            <string>Lightroom Templates Generator</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleVersion</key>
+            <string>1.0</string>
+            <key>NSPrincipalClass</key>
+            <string>NSApplication</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Zip .app
+        run: |
           cd output && zip -r lightroom-template.zip lightroom-template-helper.app
 
       - name: Upload artifact
@@ -22,4 +52,3 @@ jobs:
         with:
           name: LightroomTemplateApp
           path: output/lightroom-template.zip
-  
