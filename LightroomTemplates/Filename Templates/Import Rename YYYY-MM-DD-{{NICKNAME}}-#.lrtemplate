@@ -1,0 +1,30 @@
+s = {
+	deflated = {
+		{
+			{
+				value = "date_YYYY",
+			},
+			"-",
+			{
+				value = "date_MM",
+			},
+			"-",
+			{
+				value = "date_DD",
+			},
+			"-{{NICKNAME}}-",
+			{
+				value = "image_filename_number_suffix",
+			},
+			name = "YYYY-MM-DD-{{NICKNAME}}-#",
+			presetType = "Naming",
+		},
+		"AgTokenPresets",
+		"restoreTokenFromArchivedState",
+	},
+	id = "DFD1BC41-ADFC-46F5-B487-928505114CC3",
+	internalName = "YYYY-MM-DD-{{NICKNAME}}-#",
+	title = "YYYY-MM-DD-{{NICKNAME}}-#",
+	type = "Naming_Tokens",
+	version = 0,
+}
