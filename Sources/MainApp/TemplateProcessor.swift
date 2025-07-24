@@ -116,7 +116,7 @@ struct TemplateProcessor {
                     }
 
                     // Replace placeholders in filename too
-                    let replacedFilename = replace(relPath.lastPathComponent, with: replacements)
+                    let replacedFilename = replace(URL(fileURLWithPath: relPath).lastPathComponent, with: replacements)
                     let dstURL = dstDirectory.appendingPathComponent(replacedFilename)
 
                     // Read file as text (templates are text files)
