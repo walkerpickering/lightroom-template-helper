@@ -9,12 +9,6 @@ struct LightroomTemplateHelperApp: App {
     }
 }
 
-struct TaskStatus: Identifiable {
-    let id = UUID()
-    let message: String
-    let isSuccess: Bool
-}
-
 struct ContentView: View {
     @State private var firstName = ""
     @State private var lastName = ""
@@ -26,132 +20,200 @@ struct ContentView: View {
     @State private var email = ""
     @State private var nickname = ""
     @State private var login = ""
-    @State private var hdname = ""
+    @State private var hdName = ""
+    @State private var statusMessages: [String] = []
+    @State private var showCompletionOptions = false
 
-    @State private var taskStatuses: [TaskStatus] = []
-    @State private var showQuitOption = false
-
-    var formComplete: Bool {
-        !firstName.isEmpty && !lastName.isEmpty && !city.isEmpty && !state.isEmpty && !zip.isEmpty &&
-        !country.isEmpty && !phone.isEmpty && !email.isEmpty &&
-        !nickname.isEmpty && !login.isEmpty && !hdname.isEmpty
+    var isFormComplete: Bool {
+        !firstName.isEmpty &&
+        !lastName.isEmpty &&
+        !city.isEmpty &&
+        !state.isEmpty &&
+        !zip.isEmpty &&
+        !country.isEmpty &&
+        !phone.isEmpty &&
+        !email.isEmpty &&
+        !nickname.isEmpty &&
+        !login.isEmpty &&
+        !hdName.isEmpty
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Lightroom Templates Generator")
-                .font(.title2)
-                .padding()
+                .font(.title)
+                .padding(.bottom, 10)
 
             Group {
                 TextField("First Name", text: $firstName)
-                    .onChange(of: firstName) { _ in updateNickname() }
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: firstName) { _ in generateNickname() }
 
                 TextField("Last Name", text: $lastName)
-                    .onChange(of: lastName) { _ in updateNickname() }
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: lastName) { _ in generateNickname() }
 
-                TextField("City", text: $city)
-                TextField("State", text: $state)
-                TextField("ZIP Code", text: $zip)
-                TextField("Country", text: $country)
-                TextField("Phone Number", text: $phone)
-                TextField("Email Address", text: $email)
+                TextField("City", text: $city).textFieldStyle(.roundedBorder)
+                TextField("State", text: $state).textFieldStyle(.roundedBorder)
+                TextField("Zip Code", text: $zip).textFieldStyle(.roundedBorder)
+                TextField("Country", text: $country).textFieldStyle(.roundedBorder)
+                TextField("Phone Number", text: $phone).textFieldStyle(.roundedBorder)
+                TextField("Email Address", text: $email).textFieldStyle(.roundedBorder)
 
                 TextField("Nickname", text: $nickname)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: nickname) { newValue in
+                        nickname = newValue.filter { $0.isLetter || $0.isNumber }
+                    }
+
                 Text("Choose a short, lowercase nickname.").font(.caption).foregroundColor(.gray)
 
-                TextField("Your Computer Username", text: $login)
-                TextField("Your External Hard Drive Name", text: $hdname)
+                TextField("Your Computer Username", text: $login).textFieldStyle(.roundedBorder)
+                TextField("Your External Hard Drive Name", text: $hdName).textFieldStyle(.roundedBorder)
                 Text("Make sure your external hard drive is connected before selecting.").font(.caption).foregroundColor(.gray)
             }
-            .textFieldStyle(.roundedBorder)
 
             Button("Submit") {
-                handleSubmit()
+                statusMessages.removeAll()
+                Task {
+                    await runTemplateSetup()
+                }
             }
-            .disabled(!formComplete)
+            .disabled(!isFormComplete)
+            .padding(.top, 10)
 
-            Divider().padding(.vertical, 5)
+            Divider().padding(.vertical)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(taskStatuses) { status in
-                        Text((status.isSuccess ? "✅" : "❌") + " " + status.message)
-                            .foregroundColor(status.isSuccess ? .green : .red)
+                    ForEach(statusMessages, id: \.self) { message in
+                        Text("• \(message)")
+                            .font(.caption)
+                            .foregroundColor(message.contains("Error") || message.contains("X") ? .red : .green)
                     }
                 }
             }
 
-            if showQuitOption {
+            if showCompletionOptions {
                 Divider().padding(.vertical, 5)
-
                 Button("Quit and Delete App") {
-                    quitAndDelete()
+                    deleteAppAndQuit()
                 }
                 .foregroundColor(.red)
             }
-
         }
         .padding()
         .frame(width: 480, height: 700)
     }
 
-    private func updateNickname() {
-        let safeFirst = firstName.trimmingCharacters(in: .whitespaces).lowercased()
-        let safeLast = lastName.trimmingCharacters(in: .whitespaces).lowercased()
-        let guess = safeFirst.prefix(1) + safeLast
-        let safe = guess.replacingOccurrences(of: "[^a-z0-9_-]", with: "", options: .regularExpression)
-        if nickname.isEmpty { nickname = safe }
+    func generateNickname() {
+        let fn = firstName.lowercased().filter(\.isLetter)
+        let ln = lastName.lowercased().filter(\.isLetter)
+        nickname = fn.prefix(1) + ln
     }
 
-    private func handleSubmit() {
-        taskStatuses = []
+    func runTemplateSetup() async {
+        let replacements: [String: String] = [
+            "{{FIRST}}": firstName,
+            "{{LAST}}": lastName,
+            "{{CITY}}": city,
+            "{{STATE}}": state,
+            "{{ZIP}}": zip,
+            "{{COUNTRY}}": country,
+            "{{PHONE}}": phone,
+            "{{EMAIL}}": email,
+            "{{NICKNAME}}": nickname,
+            "{{LOGIN}}": login,
+            "{{HDNAME}}": hdName
+        ]
 
-        runShellScript(arguments: [
-            firstName, lastName, city, state, zip, country, phone, email, nickname, login, hdname
-        ])
-    }
+        // 1. Rename catalog files
+        let pictures = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/Lightroom")
+        let lrcatPrefix = "Lightroom Catalog"
+        let newCatalogName = "\(firstName) \(lastName)"
+        let catalogFiles = try? FileManager.default.contentsOfDirectory(at: pictures, includingPropertiesForKeys: nil)
 
-    private func runShellScript(arguments: [String]) {
-        let task = Process()
-        task.launchPath = Bundle.main.path(forResource: "template_script", ofType: "sh") // Your shell script
-        task.arguments = arguments
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-
-        task.launch()
-        task.waitUntilExit()
-
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        parseScriptOutput(output)
-    }
-
-    private func parseScriptOutput(_ output: String) {
-        let lines = output.split(separator: "\n")
-        for line in lines {
-            let str = String(line)
-            if str.starts(with: "✅") {
-                taskStatuses.append(TaskStatus(message: str.dropFirst(2).description, isSuccess: true))
-            } else if str.starts(with: "❌") {
-                taskStatuses.append(TaskStatus(message: str.dropFirst(2).description, isSuccess: false))
+        var foundLRCatalog = false
+        catalogFiles?.forEach { file in
+            if file.lastPathComponent.hasPrefix(lrcatPrefix) {
+                foundLRCatalog = true
+                let newFile = file.deletingLastPathComponent().appendingPathComponent(file.lastPathComponent.replacingOccurrences(of: lrcatPrefix, with: newCatalogName))
+                try? FileManager.default.moveItem(at: file, to: newFile)
             }
         }
 
-        if taskStatuses.allSatisfy({ $0.isSuccess }) {
-            showQuitOption = true
+        if foundLRCatalog {
+            statusMessages.append("✅ Catalog files renamed to: \(newCatalogName)...")
+        } else {
+            statusMessages.append("⚠️ No default catalog files found. Skipped renaming.")
         }
+
+        // 2. Process and copy templates
+        guard let templatePath = Bundle.main.resourcePath?.appending("/LightroomTemplates") else {
+            statusMessages.append("❌ Template processing failed: Couldn't find resource folder.")
+            return
+        }
+
+        let destinationRoot = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Adobe/Lightroom")
+
+        let folders = [
+            "Export Presets/UNL PHOT 161",
+            "Filename Templates",
+            "Import Presets/User Presets",
+            "Metadata Preset",
+            "Print Templates/User Templates"
+        ]
+
+        for folder in folders {
+            let src = URL(fileURLWithPath: templatePath).appendingPathComponent(folder)
+            let dst = destinationRoot.appendingPathComponent(folder)
+
+            do {
+                try FileManager.default.createDirectory(at: dst, withIntermediateDirectories: true)
+                let files = try FileManager.default.contentsOfDirectory(at: src, includingPropertiesForKeys: nil)
+
+                var willOverwrite = false
+                for file in files {
+                    let contents = try String(contentsOf: file)
+                    let replaced = replacements.reduce(contents) { $0.replacingOccurrences(of: $1.key, with: $1.value) }
+
+                    let filename = file.lastPathComponent
+                        .replacingOccurrences(of: "{{FIRST}}", with: firstName)
+                        .replacingOccurrences(of: "{{LAST}}", with: lastName)
+
+                    let outputPath = dst.appendingPathComponent(filename)
+                    if FileManager.default.fileExists(atPath: outputPath.path) { willOverwrite = true }
+
+                    try replaced.write(to: outputPath, atomically: true, encoding: .utf8)
+                }
+
+                statusMessages.append("✅ Templates installed in: \(folder)")
+                if willOverwrite {
+                    statusMessages.append("⚠️ Some files were overwritten in \(folder)")
+                }
+            } catch {
+                statusMessages.append("❌ Error copying to \(folder): \(error.localizedDescription)")
+            }
+        }
+
+        // 3. Show final option
+        statusMessages.append("🎉 Done!")
+        showCompletionOptions = true
     }
 
-    private func quitAndDelete() {
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = ["-c", """
-        APP_PATH="$(dirname "$(dirname "$0")")"
-        rm -rf "$APP_PATH"
-        osascript -e 'tell application "System Events" to quit application "Lightroom Templates Generator"'
-        """]
-        task.launch()
+    func deleteAppAndQuit() {
+        let fm = FileManager.default
+        let appPath = Bundle.main.bundleURL
+
+        // Check if it's inside "LightroomTemplateApp" folder
+        let parent = appPath.deletingLastPathComponent()
+        if parent.lastPathComponent == "LightroomTemplateApp" {
+            try? fm.removeItem(at: parent)
+        } else {
+            try? fm.removeItem(at: appPath)
+        }
+
+        NSApp.terminate(nil)
     }
 }
